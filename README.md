@@ -20,6 +20,27 @@ Pipeline xử lý data theo kiến trúc Medallion (Bronze → Silver → Gold) 
 
 ---
 
+## 🔄 Pipeline Orchestration
+
+Pipeline được điều phối bởi **Apache Airflow** với 27 tasks:
+
+| Task Group | Tasks | Description |
+|------------|-------|-------------|
+| **Bronze Layer** | 9 tasks | Extract CSV → Parquet |
+| **Silver Layer** | 7 tasks | Clean & standardize data |
+| **Gold Dimensions** | 8 tasks | Create dimension tables |
+| **Gold Facts** | 2 tasks | Create fact tables |
+| **Load to PostgreSQL** | 1 task | Export Gold → PostgreSQL |
+
+**DAG Features:**
+- Schedule: Daily @ 6:00 AM
+- Sequential execution để tránh Spark conflicts
+- TaskGroups cho visual organization
+
+![Airflow DAG](images/DAG_airflow.png)
+
+---
+
 ## 📊 Data Quality - Medallion Architecture
 
 ###### 🥉 **Bronze Layer**
