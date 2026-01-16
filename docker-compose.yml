@@ -1,0 +1,135 @@
+# =============================================================================
+# E-commerce Lakehouse - Docker Compose
+# =============================================================================
+# TRUE LAKEHOUSE ARCHITECTURE:
+#
+#   CSV → PySpark → Parquet (Bronze/Silver/Gold) → Trino → Metabase
+#
+# - PySpark: ETL/Transform (read CSV, write Parquet)
+# - Parquet: Columnar storage for all layers
+# - Trino: Distributed SQL query engine
+# - Metabase: Visualization
+# - Airflow: Orchestration
+# =============================================================================
+
+services:
+  # ==========================================================================
+  # PostgreSQL - Metadata only (Airflow, Metabase)
+  # ==========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: lakehouse_postgres
+    environment:
+      POSTGRES_USER: lakehouse
+      POSTGRES_PASSWORD: lakehouse123
+      POSTGRES_DB: lakehouse
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U lakehouse -d lakehouse" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lakehouse_network
+
+  # ==========================================================================
+  # Apache Spark - PySpark with Jupyter (ETL + Transform)
+  # ==========================================================================
+  spark:
+    image: jupyter/pyspark-notebook:latest
+    container_name: lakehouse_spark
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    ports:
+      - "8888:8888" # Jupyter Lab
+      - "4040:4040" # Spark UI
+    volumes:
+      - ./spark/apps:/home/jovyan/apps
+      - ./data:/home/jovyan/data
+      - ./data:/data
+    networks:
+      - lakehouse_network
+
+  # ==========================================================================
+  # Trino - Distributed SQL Query Engine (DISABLED - using PostgreSQL instead)
+  # Uncomment below if you want to enable direct Parquet queries
+  # ==========================================================================
+  # trino:
+  #   image: trinodb/trino:latest
+  #   container_name: lakehouse_trino
+  #   ports:
+  #     - "8082:8080"
+  #   volumes:
+  #     - ./trino/etc:/etc/trino
+  #     - ./data:/data
+  #   networks:
+  #     - lakehouse_network
+
+  # ==========================================================================
+  # Metabase - Visualization (connects to Trino)
+  # ==========================================================================
+  metabase:
+    image: metabase/metabase:latest
+    container_name: lakehouse_metabase
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: lakehouse
+      MB_DB_PASS: lakehouse123
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lakehouse_network
+
+  # ==========================================================================
+  # Airflow - Workflow Orchestration
+  # ==========================================================================
+  airflow:
+    image: apache/airflow:2.7.3-python3.10
+    container_name: lakehouse_airflow
+    user: root
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://lakehouse:lakehouse123@postgres:5432/airflow
+      - AIRFLOW__CORE__FERNET_KEY=zTvhDynALQGe2lTvhalPz6YjXuJrPqr4n5xXvQEp-OM=
+      - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey123456
+      - _AIRFLOW_DB_MIGRATE=true
+      - _AIRFLOW_WWW_USER_CREATE=true
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./spark/apps:/opt/airflow/spark
+      - ./data:/data
+    ports:
+      - "8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        apt-get update && apt-get install -y --no-install-recommends openjdk-17-jdk-headless && apt-get clean
+        export HOME=/home/airflow
+        su airflow -c "export HOME=/home/airflow && pip install pyspark pandas pyarrow --quiet && airflow standalone"
+    networks:
+      - lakehouse_network
+
+networks:
+  lakehouse_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
