@@ -20,9 +20,9 @@ services:
     image: postgres:15-alpine
     container_name: lakehouse_postgres
     environment:
-      POSTGRES_USER: lakehouse
-      POSTGRES_PASSWORD: lakehouse123
-      POSTGRES_DB: lakehouse
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
@@ -80,8 +80,8 @@ services:
       MB_DB_HOST: postgres
       MB_DB_PORT: 5432
       MB_DB_DBNAME: metabase
-      MB_DB_USER: lakehouse
-      MB_DB_PASS: lakehouse123
+      MB_DB_USER: ${MB_DB_USER}
+      MB_DB_PASS: ${MB_DB_PASS}
     ports:
       - "3000:3000"
     depends_on:
@@ -99,13 +99,13 @@ services:
     user: root
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://lakehouse:lakehouse123@postgres:5432/airflow
-      - AIRFLOW__CORE__FERNET_KEY=zTvhDynALQGe2lTvhalPz6YjXuJrPqr4n5xXvQEp-OM=
-      - AIRFLOW__WEBSERVER__SECRET_KEY=mysecretkey123456
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_SECRET_KEY}
       - _AIRFLOW_DB_MIGRATE=true
       - _AIRFLOW_WWW_USER_CREATE=true
-      - _AIRFLOW_WWW_USER_USERNAME=admin
-      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - _AIRFLOW_WWW_USER_USERNAME=${AIRFLOW_ADMIN_USER}
+      - _AIRFLOW_WWW_USER_PASSWORD=${AIRFLOW_ADMIN_PASSWORD}
       - JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
     volumes:
       - ./airflow/dags:/opt/airflow/dags
